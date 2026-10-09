@@ -1,0 +1,400 @@
+/* BREWL espresso control — a cream machine panel under a graphite name plate: a big temperature dial with a glowing
+   heat arc, two knurled chrome knobs (pressure, grind), a copper recipe switch, a dark glass extraction graph, the cup
+   under the spout, and a copper PULL SHOT button.
+
+   Sizes are in the design's own pixels. The stage scales the whole panel to the screen (app.js → fit()), so the panel
+   keeps the concept's proportions on every screen; three layouts place the parts: desk (the concept's panel), wide
+   (a phone on its side) and phone (the concept's phone, a column).
+
+   1 tokens: primitive → semantic → component     2 the page and the stage     3 the panel and its name plate
+   4 the dials: shared parts, temperature, knobs   5 temperature states: idle, turning, ready, too hot, steam
+   6 the recipe switch     7 the graph and the result     8 the cup     9 PULL SHOT     10 layouts     11 reduced motion */
+
+/* ---- 1. TOKENS ---- */
+/* primitive: the raw values, named for what they are */
+:root {
+  --cream-50: #FBF7EF; --cream-100: #F6F0E4; --cream-200: #EFE7D8; --cream-300: #E3D8C4; --cream-400: #CFC2AA; --cream-page: #F1E8D8;
+  --ink-900: #24211D; --ink-700: #3F3A33; --ink-500: #6C655A; --ink-300: #A39B8D;
+  --graphite-950: #101114; --graphite-900: #17191E; --graphite-800: #1F2228; --graphite-700: #2B2F36; --graphite-400: #8B9099; --graphite-200: #C6C9CF;
+  --copper-200: #F6C7A2; --copper-300: #EBA275; --copper-400: #DD8250; --copper-500: #C9693A; --copper-600: #A8532B; --copper-700: #7C3A1D; --copper-900: #3A1C0E;
+  --chrome-50: #FAFAFA; --chrome-100: #EDEDED; --chrome-200: #D6D6D6; --chrome-300: #BDBDBD; --chrome-500: #8E8E8E; --chrome-700: #5E5E5E;
+  --heat-blue: #3F86FF; --heat-sky: #5DB8FF; --heat-ice: #BFE0FF; --heat-amber: #FF9A4A; --heat-red: #FF3B2F;
+  --crema: #C9894A;
+  --white: #FFFFFF;
+
+  --font-display: 'Anton', 'Oswald', 'Impact', sans-serif;
+  --font-cond: 'Oswald', 'Anton', sans-serif;
+  --font-ui: 'Inter', ui-sans-serif, system-ui, -apple-system, sans-serif;
+}
+
+/* semantic: what each value is for */
+:root {
+  --page: var(--cream-page);
+  --panel: var(--cream-100);
+  --panel-edge: rgb(60 45 25 / .1);
+  --on-panel: var(--ink-900);
+  --on-panel-muted: var(--ink-500);
+  --tick: rgb(36 33 29 / .55);
+  --tick-faint: rgb(36 33 29 / .18);
+  --plate: var(--graphite-900);
+  --on-plate: var(--graphite-200);
+  --accent: var(--copper-500);
+  --accent-glow: rgb(235 135 75 / .55);
+  --glass: var(--graphite-950);
+  --on-glass: #E9E4DC;
+  --on-glass-muted: rgb(233 228 220 / .5);
+  --pressure-line: #6EC3FF;
+  --flow-line: #FFB070;
+  --focus: var(--copper-500);
+}
+
+/* component: per-part values */
+:root {
+  --panel-r: 22px;
+  --panel-drop: 0 2px 0 rgb(255 255 255 / .9) inset, 0 -2px 0 rgb(60 40 20 / .06) inset, 0 40px 70px -30px rgb(70 45 20 / .35), 0 12px 24px -10px rgb(70 45 20 / .18);
+  --chrome-face: radial-gradient(circle at 50% 30%, rgb(255 255 255 / .65), transparent 58%),
+                 conic-gradient(from 15deg, #C9C9C9, #F6F6F6 10%, #A7A7A7 22%, #E9E9E9 35%, #B4B4B4 48%, #F4F4F4 60%, #A3A3A3 73%, #E6E6E6 86%, #C9C9C9);
+  --knurl: repeating-conic-gradient(#F4F4F4 0deg 1.1deg, #9A9A9A 1.6deg 2.4deg, #F4F4F4 2.9deg 3.6deg);
+  --copper-fill: linear-gradient(180deg, #F0A676 0%, #D9763F 48%, #B85A2A 100%);
+  --dark-fill: linear-gradient(180deg, #2F333A 0%, #1B1D22 55%, #121317 100%);
+  --press: cubic-bezier(.2, .8, .2, 1);
+}
+
+/* ---- 2. THE PAGE AND THE STAGE ---- */
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; }
+body {
+  background: radial-gradient(120% 90% at 30% 0%, var(--cream-50), var(--page) 60%, #E9DEC9);
+  color: var(--on-panel); font-family: var(--font-ui); -webkit-font-smoothing: antialiased;
+  -webkit-tap-highlight-color: transparent; overflow: hidden;
+}
+button { font: inherit; color: inherit; border: 0; background: none; padding: 0; cursor: pointer; }
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; margin: -1px; }
+
+/* the stage fills the screen; .frame is the panel's scaled footprint; .brewl is the panel at design size, scaled */
+.stage { position: relative; height: 100dvh; width: 100%; display: grid; place-items: center; overflow: hidden; }
+.frame { position: relative; width: calc(var(--w) * var(--s) * 1px); height: calc(var(--h) * var(--s) * 1px); }
+.brewl {
+  position: absolute; left: 0; top: 0; width: calc(var(--w) * 1px); height: calc(var(--h) * 1px);
+  transform: scale(var(--s)); transform-origin: 0 0;
+  background: linear-gradient(180deg, var(--cream-50), var(--panel) 30%, var(--cream-200));
+  border-radius: var(--panel-r); box-shadow: var(--panel-drop);
+  user-select: none; -webkit-user-select: none;
+}
+.stage:not(.ready) .brewl { visibility: hidden; }
+
+/* ---- 3. THE NAME PLATE ---- */
+.plate { position: absolute; left: 0; top: 0; width: 100%; height: var(--plate-h); }
+.plate-shape { position: absolute; left: 0; top: 0; width: 100%; height: calc(var(--plate-h) + var(--tab-h)); overflow: visible; }
+.plate-shape { filter: drop-shadow(0 6px 10px rgb(30 20 10 / .25)); }
+.badge {
+  position: absolute; left: 50%; top: var(--badge-y); width: var(--badge-w); height: var(--badge-h); transform: translateX(-50%);
+  border-radius: 12px; padding: 3px;
+  background: linear-gradient(180deg, var(--copper-200), var(--copper-500) 45%, var(--copper-700) 100%);
+  box-shadow: 0 6px 14px rgb(0 0 0 / .45), 0 0 0 1px rgb(0 0 0 / .5);
+}
+.badge::before { content: ''; position: absolute; inset: 3px; border-radius: 9px; background: linear-gradient(180deg, #2A2D33, #16181C);
+  box-shadow: inset 0 2px 6px rgb(0 0 0 / .7), inset 0 -1px 0 rgb(255 255 255 / .08); }
+.badge-word {
+  position: relative; margin: 0; height: 100%; display: grid; place-items: center;
+  font-family: var(--font-display); font-weight: 400; font-size: var(--badge-font); letter-spacing: .07em; line-height: 1; padding-left: .07em;
+  background: linear-gradient(180deg, #FFFFFF 0%, #E3E3E3 38%, #8F8F8F 52%, #D9D9D9 70%, #A9A9A9 100%);
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+  filter: drop-shadow(0 1px 0 rgb(0 0 0 / .8)) drop-shadow(0 -1px 0 rgb(255 255 255 / .12));
+}
+.plate-sub {
+  position: absolute; left: 50%; top: calc(var(--plate-h) + var(--tab-h) / 2); transform: translate(-50%, -50%); margin: 0;
+  font: 500 var(--sub-font)/1 var(--font-ui); letter-spacing: .06em; text-transform: uppercase; color: var(--on-plate); white-space: nowrap;
+}
+
+/* ---- 4. THE DIALS ---- */
+/* every dial is a square box of side --d; its rings are centred circles sized as fractions of --d */
+.dial { position: absolute; width: calc(var(--d) * 1px); height: calc(var(--d) * 1px); border-radius: 50%; touch-action: none; cursor: grab; outline: none; }
+.dial.is-turning { cursor: grabbing; }
+.dial > * { position: absolute; left: 50%; top: 50%; border-radius: 50%; transform: translate(-50%, -50%); }
+.dial .ticks { width: 100%; height: 100%; border-radius: 0; overflow: visible; }
+.dial .ticks line { stroke: var(--tick-faint); stroke-linecap: round; }
+.dial .ticks line.on { stroke: var(--tick); }
+.dial .ticks line.major { stroke-width: 2.2; }
+.dial:focus-visible::after { content: ''; position: absolute; inset: -6px; border-radius: 50%; box-shadow: 0 0 0 3px var(--focus); }
+
+.knurl { width: calc(var(--d) * var(--kn) * 1px); height: calc(var(--d) * var(--kn) * 1px); overflow: hidden;
+  box-shadow: 0 0 0 1.5px rgb(40 40 40 / .55), 0 6px 14px rgb(0 0 0 / .35), 0 2px 3px rgb(0 0 0 / .3); }
+.knurl-spin { position: absolute; inset: 0; border-radius: 50%; background: var(--knurl); will-change: transform; }
+.knurl-light { position: absolute; inset: 0; border-radius: 50%;
+  background: linear-gradient(155deg, rgb(255 255 255 / .55), rgb(255 255 255 / 0) 42%, rgb(0 0 0 / .1) 60%, rgb(0 0 0 / .42)); }
+.face {
+  width: calc(var(--d) * var(--fc) * 1px); height: calc(var(--d) * var(--fc) * 1px);
+  background: var(--chrome-face);
+  box-shadow: inset 0 2px 2px rgb(255 255 255 / .9), inset 0 -3px 6px rgb(0 0 0 / .22), 0 0 0 1px rgb(0 0 0 / .25), 0 3px 6px rgb(0 0 0 / .25);
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+}
+.face::before { content: ''; position: absolute; inset: 0; border-radius: 50%; opacity: .5;
+  background: repeating-radial-gradient(circle, rgb(0 0 0 / .035) 0 1px, rgb(255 255 255 / .04) 1px 2px); }
+.face > * { position: relative; }
+.face-value { display: flex; align-items: flex-start; font-weight: 700; line-height: 1; font-variant-numeric: tabular-nums; letter-spacing: -.02em; }
+
+/* temperature: the dark bezel carries the heat arc; the marker rides the arc */
+.dial--temp .bezel {
+  width: calc(var(--d) * var(--bz) * 1px); height: calc(var(--d) * var(--bz) * 1px);
+  background: radial-gradient(circle, #24272D 55%, #15171B 70%, #1B1D22 100%);
+  box-shadow: 0 0 0 2px #9C9C9C, 0 0 0 3.5px #E8E8E8, 0 0 0 5px #6D6D6D, 0 14px 26px -6px rgb(40 25 10 / .55), inset 0 4px 10px rgb(0 0 0 / .8);
+}
+.dial--temp .arc { position: absolute; inset: 0; width: 100%; height: 100%; border-radius: 50%; }
+.marker {
+  position: absolute; left: 50%; top: 50%; width: calc(var(--d) * .03 * 1px); height: calc(var(--d) * .068 * 1px); margin: calc(var(--d) * -.034 * 1px) 0 0 calc(var(--d) * -.015 * 1px);
+  border-radius: 99px; background: linear-gradient(90deg, #E9E1D2, #FFFBF3 45%, #CFC5B2); box-shadow: 0 1px 3px rgb(0 0 0 / .6), 0 0 8px rgb(255 240 220 / .4);
+  will-change: transform;
+}
+.marker.ghost { opacity: 0; transition: opacity .25s; }
+.dial.is-turning .marker.g1 { opacity: .35; }
+.dial.is-turning .marker.g2 { opacity: .16; }
+.dial--temp .face-label { font-weight: 600; letter-spacing: .02em; text-transform: uppercase; color: #3A3836; text-shadow: 0 1px 0 rgb(255 255 255 / .6); }
+.dial--temp .face-label { font-size: calc(var(--d) * .049 * 1px); }
+.dial--temp .face-value { margin-top: calc(var(--d) * .01 * 1px); color: #FFFFFF; text-shadow: 0 1px 1px rgb(0 0 0 / .35), 0 2px 8px rgb(0 0 0 / .3); }
+.dial--temp .num { font-size: calc(var(--d) * .225 * 1px); font-weight: 700; }
+.dial--temp sup { font-size: calc(var(--d) * .075 * 1px); font-weight: 600; margin: calc(var(--d) * .02 * 1px) 0 0 calc(var(--d) * .006 * 1px); }
+.face-chip {
+  margin-top: calc(var(--d) * .016 * 1px); padding: calc(var(--d) * .009 * 1px) calc(var(--d) * .028 * 1px); border-radius: 99px;
+  font-size: calc(var(--d) * .034 * 1px); font-weight: 650; letter-spacing: .08em; text-transform: uppercase; white-space: nowrap;
+  color: #EDEAE4; background: rgb(24 24 27 / .72); box-shadow: inset 0 1px 0 rgb(255 255 255 / .12);
+  transition: background-color .25s, color .25s;
+}
+
+/* the halo: a soft light behind the bezel, warm when ready, red and pulsing when too hot */
+.halo { width: calc(var(--d) * var(--bz) * 1.24px); height: calc(var(--d) * var(--bz) * 1.24px); opacity: 0; transition: opacity .4s;
+  background: radial-gradient(closest-side, rgb(255 140 60 / .5) 70%, rgb(255 140 60 / .16) 85%, transparent); }
+
+/* small knobs: chrome face with the number, a notch that turns, ticks that light up to the value */
+.knob-wrap { position: absolute; }
+.knob-wrap .dial { position: relative; display: block; margin: 0 auto; }
+.knob-label, .knob-unit, .knob-end { position: absolute; left: 50%; transform: translateX(-50%); white-space: nowrap; }
+.knob-label { top: 0; font-size: var(--knob-label); font-weight: 600; letter-spacing: .02em; text-transform: uppercase; color: var(--on-panel); }
+.knob-unit { bottom: 0; font-size: var(--knob-unit); font-weight: 500; color: var(--on-panel); }
+.knob-end { bottom: calc(var(--knob-unit) * .2); font-size: calc(var(--knob-unit) * .72); font-weight: 600; color: var(--on-panel-muted); letter-spacing: .04em; text-transform: uppercase; }
+.knob-end.lo { transform: translateX(calc(-50% - var(--d) * .4px)); }
+.knob-end.hi { transform: translateX(calc(-50% + var(--d) * .4px)); }
+.dial--knob .num { font-size: calc(var(--d) * .2 * 1px); color: #2A2826; text-shadow: 0 1px 0 rgb(255 255 255 / .7); }
+.dial--knob .notch { position: absolute; left: 50%; top: 50%; width: calc(var(--d) * .016 * 1px); height: calc(var(--d) * .07 * 1px); border-radius: 2px;
+  margin: calc(var(--d) * -.035 * 1px) 0 0 calc(var(--d) * -.008 * 1px); background: #2A2826; box-shadow: 0 1px 0 rgb(255 255 255 / .6); will-change: transform; }
+
+/* ---- 5. TEMPERATURE STATES (component.jpg): idle (cool), turning, ready, too hot ---- */
+.brewl[data-temp-state="ready"] .dial--temp .halo { opacity: .55; }
+.brewl[data-temp-state="hot"] .dial--temp .halo {
+  background: radial-gradient(closest-side, rgb(255 45 35 / .85) 70%, rgb(255 45 35 / .3) 84%, transparent);
+  animation: hot-pulse 1.1s ease-in-out infinite alternate;
+}
+.brewl[data-temp-state="hot"] .face-chip { background: rgb(200 30 25 / .9); color: #FFFFFF; }
+.brewl[data-temp-state="idle"] .face-chip { background: rgb(30 60 110 / .75); }
+@keyframes hot-pulse { from { opacity: .45; transform: translate(-50%, -50%) scale(.97); } to { opacity: 1; transform: translate(-50%, -50%) scale(1.05); } }
+
+/* steam: four soft wisps rising off the dial when the water is ready (and the cup, while it fills) */
+.steam { width: calc(var(--d) * .5px); height: calc(var(--d) * .6px); top: calc(var(--d) * -.05px); border-radius: 0; pointer-events: none; opacity: 0; transition: opacity .8s; }
+.brewl[data-temp-state="ready"] .dial--temp .steam { opacity: 1; }
+.steam i { position: absolute; bottom: 0; width: 24%; aspect-ratio: 1 / 2.6; border-radius: 50%; opacity: 0;
+  background: radial-gradient(closest-side, rgb(255 255 255 / .42), rgb(255 255 255 / .12) 60%, transparent); animation: wisp 4.8s linear infinite; }
+.steam i:nth-child(1) { left: 22%; animation-delay: -.4s; }
+.steam i:nth-child(2) { left: 40%; animation-delay: -1.6s; animation-duration: 5.4s; }
+.steam i:nth-child(3) { left: 56%; animation-delay: -2.8s; }
+.steam i:nth-child(4) { left: 34%; animation-delay: -3.9s; animation-duration: 5.8s; }
+@keyframes wisp {
+  0% { transform: translate(0, 10%) scale(.55, .5); opacity: 0; }
+  18% { opacity: .9; }
+  55% { transform: translate(14%, -70%) scale(.9, 1) rotate(8deg); opacity: .55; }
+  100% { transform: translate(-10%, -150%) scale(1.25, 1.3) rotate(-6deg); opacity: 0; }
+}
+
+/* ---- 6. THE RECIPE SWITCH ---- */
+.presets {
+  position: absolute; display: flex; align-items: stretch; padding: 0 5px; border-radius: 999px;
+  background: linear-gradient(180deg, #E9E1D3, #F3EDE2); box-shadow: inset 0 2px 4px rgb(60 40 20 / .16), inset 0 -1px 0 rgb(255 255 255 / .9), 0 0 0 1.5px rgb(60 45 25 / .14), 0 1px 0 rgb(255 255 255 / .9);
+}
+.preset {
+  position: relative; z-index: 1; flex: 1 1 0; border-radius: 999px;
+  font-size: var(--preset-font); font-weight: 600; letter-spacing: .03em; text-transform: uppercase; color: var(--ink-700);
+  transition: color .3s;
+}
+.preset[aria-checked="true"] { color: #FFF8F0; text-shadow: 0 1px 1px rgb(90 40 10 / .5); }
+.preset:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+.presets-dot { flex: 0 0 6px; height: 6px; align-self: center; border-radius: 50%; background: var(--ink-500); opacity: .7; }
+.presets-thumb {
+  position: absolute; left: 0; top: 5px; bottom: 5px; border-radius: 999px; will-change: transform;
+  background: var(--copper-fill);
+  box-shadow: 0 0 18px var(--accent-glow), 0 0 0 1px rgb(120 50 15 / .6), inset 0 1px 0 rgb(255 220 190 / .7), inset 0 -2px 4px rgb(90 35 10 / .35);
+  transition: transform .45s var(--press), width .45s var(--press);
+}
+
+/* ---- 7. THE GRAPH ---- */
+.graph {
+  position: absolute; margin: 0; border-radius: 16px; overflow: hidden;
+  background: radial-gradient(120% 90% at 20% 100%, #1A1B20, #0D0E11 70%);
+  box-shadow: 0 0 0 1.5px #050506, inset 0 0 0 1px rgb(255 255 255 / .07), 0 20px 30px -16px rgb(40 25 10 / .6);
+}
+.graph::after { content: ''; position: absolute; inset: 0; pointer-events: none;
+  background: linear-gradient(112deg, transparent 52%, rgb(255 255 255 / .065) 52.2%, rgb(255 255 255 / .02) 78%, transparent 78.2%),
+              linear-gradient(180deg, rgb(255 255 255 / .05), transparent 18%); }
+.graph-canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+.graph-legend { position: absolute; right: 22px; top: 18px; display: grid; gap: 4px; font-size: var(--legend-font); color: var(--on-glass-muted); }
+.lg { display: flex; align-items: center; gap: 7px; }
+.lg::before { content: ''; width: 16px; height: 2px; border-radius: 2px; }
+.lg-p::before { background: var(--pressure-line); box-shadow: 0 0 6px var(--pressure-line); }
+.lg-f::before { background: var(--flow-line); box-shadow: 0 0 6px var(--flow-line); }
+.graph-read { position: absolute; left: 22px; top: 16px; display: flex; gap: 14px; font-size: var(--legend-font); font-variant-numeric: tabular-nums; color: var(--on-glass-muted); white-space: nowrap; }
+.rd-p { color: color-mix(in srgb, var(--pressure-line) 80%, white); }
+.rd-f { color: color-mix(in srgb, var(--flow-line) 80%, white); }
+.graph-axis span { position: absolute; bottom: var(--axis-y); font-size: var(--axis-font); color: var(--on-glass-muted); transform: translateX(-50%); white-space: nowrap; font-variant-numeric: tabular-nums; transition: opacity .2s; }
+.graph-axis span.first { transform: none; }
+.graph-axis span.hide { opacity: 0; }
+.playhead { position: absolute; left: 0; top: 0; width: 0; height: 100%; will-change: transform; opacity: 0; transition: opacity .3s; }
+.playhead.on { opacity: 1; }
+.ph-line { position: absolute; left: -1px; width: 2px; top: var(--plot-top); bottom: var(--plot-bottom); background: linear-gradient(180deg, rgb(255 210 160 / .2), #FFD2A0 20%, #FFC089 80%, rgb(255 190 140 / .3)); box-shadow: 0 0 10px rgb(255 170 100 / .7); }
+.ph-dot { position: absolute; left: -7px; top: -7px; width: 14px; height: 14px; border-radius: 50%; will-change: transform; }
+.ph-p { background: #E6F4FF; box-shadow: 0 0 0 2px rgb(110 195 255 / .6), 0 0 12px var(--pressure-line); }
+.ph-f { background: #FFF1E2; box-shadow: 0 0 0 2px rgb(255 176 112 / .6), 0 0 12px var(--flow-line); }
+.ph-time { position: absolute; bottom: var(--axis-y); left: 0; transform: translateX(-50%); font-size: var(--axis-font); font-weight: 700; color: #FFC089; text-shadow: 0 0 10px rgb(255 160 80 / .6); font-variant-numeric: tabular-nums; }
+
+/* the verdict, a glass card over the graph's empty corner */
+.result {
+  position: absolute; left: 18px; top: 46px; max-width: 66%; padding: 12px 16px 13px; border-radius: 12px;
+  background: rgb(26 27 32 / .82); box-shadow: inset 0 0 0 1px rgb(255 255 255 / .1), 0 10px 24px rgb(0 0 0 / .4);
+  opacity: 0; transform: translateY(-6px); transition: opacity .35s, transform .45s var(--press); pointer-events: none;
+}
+.result.on { opacity: 1; transform: none; }
+.result p { margin: 0; }
+.result-title { font-size: var(--result-font); font-weight: 700; color: #FFF4E8; letter-spacing: -.005em; white-space: nowrap; }
+.result-advice { margin-top: 3px !important; font-size: calc(var(--result-font) * .8); color: var(--on-glass-muted); }
+.result::before { content: ''; position: absolute; left: 0; top: 12px; bottom: 12px; width: 3px; border-radius: 0 3px 3px 0; background: var(--verdict, #7DDB8F); }
+.result[data-kind="balanced"] { --verdict: #7DDB8F; }
+.result[data-kind="under"] { --verdict: var(--pressure-line); }
+.result[data-kind="over"] { --verdict: var(--heat-red); }
+.result[data-kind="stopped"] { --verdict: var(--graphite-400); }
+
+/* ---- 8. THE CUP ---- */
+.cup {
+  position: absolute; border-radius: 16px; overflow: hidden;
+  background: radial-gradient(70% 90% at 45% 62%, #3A2A20, #1A1410 55%, #0C0A09);
+  box-shadow: 0 0 0 1.5px #050506, inset 0 0 0 1px rgb(255 255 255 / .07), 0 20px 30px -16px rgb(40 25 10 / .6);
+}
+.cup::after { content: ''; position: absolute; inset: 0; pointer-events: none; background: linear-gradient(112deg, transparent 60%, rgb(255 255 255 / .05) 60.2%, transparent 85%); }
+.cup-svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+.timer { position: absolute; right: 16px; bottom: 12px; font-size: var(--timer-font); font-weight: 700; letter-spacing: .01em; font-variant-numeric: tabular-nums;
+  color: #FFE2C4; text-shadow: 0 0 12px rgb(255 150 70 / .65), 0 1px 1px rgb(0 0 0 / .8); }
+
+/* ---- 9. PULL SHOT ---- */
+.pull {
+  position: absolute; display: flex; border-radius: 20px; padding: 4px; overflow: hidden;
+  background: linear-gradient(180deg, #E9A57A, #A8532B); box-shadow: 0 0 0 1px rgb(110 45 15 / .7), 0 0 22px var(--accent-glow), 0 10px 18px -6px rgb(120 50 15 / .55);
+  transition: transform .12s var(--press), box-shadow .2s;
+}
+.pull > span { position: relative; display: grid; place-items: center; height: 100%; font-family: var(--font-cond); font-weight: 600; font-size: var(--pull-font); letter-spacing: .02em; text-transform: uppercase; line-height: 1; }
+.pull-a { flex: 0 0 47%; border-radius: 16px 0 0 16px; background: var(--copper-fill); color: #2A1408; text-shadow: 0 1px 0 rgb(255 210 180 / .5);
+  box-shadow: inset 0 2px 0 rgb(255 225 200 / .75), inset 0 -3px 6px rgb(90 35 10 / .35); }
+.pull-b { flex: 1 1 auto; border-radius: 0 16px 16px 0; background: var(--dark-fill); color: #F4E8DA; box-shadow: inset 0 1px 0 rgb(255 255 255 / .12), inset 0 -3px 6px rgb(0 0 0 / .5); }
+.pull-progress { position: absolute; left: 4px; right: 4px; bottom: 4px; height: 3px; border-radius: 3px; background: linear-gradient(90deg, #FFD2A8, #FF9A4A); transform: scaleX(0); transform-origin: 0 50%; opacity: 0; will-change: transform; box-shadow: 0 0 8px rgb(255 150 70 / .9); }
+.pull.is-running .pull-progress { opacity: 1; }
+.pull:hover { box-shadow: 0 0 0 1px rgb(110 45 15 / .7), 0 0 30px rgb(240 140 75 / .7), 0 10px 18px -6px rgb(120 50 15 / .55); }
+.pull:active, .pull.is-pressed { transform: translateY(2px) scale(.992); }
+.pull:active .pull-a, .pull.is-pressed .pull-a { box-shadow: inset 0 3px 8px rgb(90 35 10 / .55); }
+.pull:focus-visible { outline: 3px solid var(--ink-900); outline-offset: 4px; }
+
+/* ---- 10. LAYOUTS (design pixels) ---- */
+/* desk: the concept's panel, 1160 × 886 */
+.stage[data-layout="desk"] {
+  --plate-h: 115px; --tab-h: 44px; --badge-y: 16px; --badge-w: 300px; --badge-h: 82px; --badge-font: 64px; --sub-font: 19px;
+  --knob-label: 19px; --knob-unit: 18px; --preset-font: 19px; --legend-font: 13px; --axis-font: 17px; --axis-y: 12px; --result-font: 19px;
+  --timer-font: 34px; --pull-font: 40px; --plot-top: 52px; --plot-bottom: 44px;
+}
+.stage[data-layout="desk"] .dial--temp { --d: 346; --bz: .913; --kn: .69; --fc: .63; left: 59px; top: 150px; }
+.stage[data-layout="desk"] .knob-wrap { --d: 176; width: 230px; height: 214px; top: 178px; }
+.stage[data-layout="desk"] .knob-wrap .dial { --kn: .74; --fc: .65; top: 32px; }
+.stage[data-layout="desk"] .knob-wrap--pressure { left: 505px; }
+.stage[data-layout="desk"] .knob-wrap--grind { left: 846px; }
+.stage[data-layout="desk"] .presets { left: 485px; top: 421px; width: 598px; height: 58px; }
+.stage[data-layout="desk"] .graph { left: 24px; top: 513px; width: 762px; height: 339px; }
+.stage[data-layout="desk"] .cup { left: 813px; top: 513px; width: 321px; height: 204px; }
+.stage[data-layout="desk"] .pull { left: 818px; top: 751px; width: 313px; height: 94px; }
+
+/* wide: a phone on its side, 1400 × 640 */
+.stage[data-layout="wide"] {
+  --plate-h: 92px; --tab-h: 40px; --badge-y: 12px; --badge-w: 250px; --badge-h: 68px; --badge-font: 52px; --sub-font: 18px;
+  --knob-label: 20px; --knob-unit: 18px; --preset-font: 20px; --legend-font: 16px; --axis-font: 18px; --axis-y: 12px; --result-font: 20px;
+  --timer-font: 36px; --pull-font: 44px; --plot-top: 56px; --plot-bottom: 46px;
+}
+.stage[data-layout="wide"] .dial--temp { --d: 360; --bz: .913; --kn: .69; --fc: .63; left: 40px; top: 186px; }
+.stage[data-layout="wide"] .knob-wrap { --d: 176; width: 230px; height: 214px; top: 176px; }
+.stage[data-layout="wide"] .knob-wrap .dial { --kn: .74; --fc: .65; top: 32px; }
+.stage[data-layout="wide"] .knob-wrap--pressure { left: 440px; }
+.stage[data-layout="wide"] .knob-wrap--grind { left: 690px; }
+.stage[data-layout="wide"] .presets { left: 440px; top: 418px; width: 480px; height: 62px; }
+.stage[data-layout="wide"] .pull { left: 440px; top: 512px; width: 480px; height: 100px; }
+.stage[data-layout="wide"] .graph { left: 952px; top: 112px; width: 424px; height: 300px; }
+.stage[data-layout="wide"] .cup { left: 952px; top: 432px; width: 424px; height: 180px; }
+.stage[data-layout="wide"] .graph-read { display: none; }
+.stage[data-layout="wide"] .result { top: 18px; max-width: 80%; }
+
+/* phone: the concept's phone, a column 390 wide; app.js sets the height and the dial's size (--pd) */
+.stage[data-layout="phone"] {
+  --plate-h: 64px; --tab-h: 0px; --badge-font: 34px; --sub-font: 11px;
+  --knob-label: 14px; --knob-unit: 12px; --preset-font: 16px; --legend-font: 10px; --axis-font: 11px; --axis-y: 6px; --result-font: 13px;
+  --timer-font: 20px; --pull-font: 30px; --plot-top: 30px; --plot-bottom: 24px;
+  background: linear-gradient(180deg, var(--graphite-900) 0 calc(var(--band) * 1px), transparent calc(var(--band) * 1px));
+}
+.stage[data-layout="phone"] .brewl { border-radius: 0; box-shadow: none; background: linear-gradient(180deg, var(--cream-50), var(--panel) 40%, var(--cream-200)); display: flex; flex-direction: column; align-items: center; padding: 0 20px 18px; }
+.stage[data-layout="phone"] .brewl > * { position: relative; left: auto; top: auto; flex: none; }
+.stage[data-layout="phone"] .plate { width: calc(100% + 40px); margin: 0 -20px; background: linear-gradient(180deg, #2A2E35, #16181C); box-shadow: 0 2px 0 var(--copper-500), 0 6px 14px rgb(30 20 10 / .25); }
+.stage[data-layout="phone"] .plate-shape { display: none; }
+.stage[data-layout="phone"] .badge { top: 0; height: 100%; width: auto; padding: 0; background: none; box-shadow: none; }
+.stage[data-layout="phone"] .badge::before { display: none; }
+.stage[data-layout="phone"] .badge-word { background: linear-gradient(180deg, #F6C7A2, #DD8250 55%, #A8532B); -webkit-background-clip: text; background-clip: text; filter: drop-shadow(0 1px 0 rgb(0 0 0 / .6)); }
+.stage[data-layout="phone"] .plate-sub { display: none; }
+.stage[data-layout="phone"] .dial--temp { --d: var(--pd); --bz: 1; --kn: .79; --fc: .74; margin-top: var(--gap); }
+.stage[data-layout="phone"] .dial--temp .ticks { display: none; }
+.stage[data-layout="phone"] .knobs { display: flex; justify-content: space-between; width: 100%; margin-top: var(--gap); }
+.stage[data-layout="phone"] .knob-wrap { position: relative; width: 168px; height: 102px; }
+.stage[data-layout="phone"] .knob-wrap { --d: 84; }
+.stage[data-layout="phone"] .knob-wrap .dial { --kn: .74; --fc: .65; position: absolute; left: 0; top: 9px; margin: 0; }
+.stage[data-layout="phone"] .knob-label { left: 92px; top: 22px; transform: none; }
+.stage[data-layout="phone"] .knob-unit { left: 92px; bottom: auto; top: 44px; transform: none; font-size: 13px; color: var(--on-panel-muted); }
+.stage[data-layout="phone"] .knob-end { display: none; }
+.readout { display: contents; }
+.stage[data-layout="phone"] .readout { display: flex; gap: 10px; width: 100%; height: 132px; margin-top: var(--gap); }
+.stage[data-layout="phone"] .graph, .stage[data-layout="phone"] .cup { position: relative; height: 100%; border-radius: 14px; }
+.stage[data-layout="phone"] .graph { flex: 1 1 auto; }
+.stage[data-layout="phone"] .cup { flex: 0 0 112px; }
+.stage[data-layout="phone"] .timer { right: 0; left: 0; text-align: center; bottom: 6px; }
+.stage[data-layout="phone"] .graph-legend { right: 10px; top: 8px; gap: 2px; }
+.stage[data-layout="phone"] .graph-read { left: 10px; top: 8px; gap: 8px; }
+.stage[data-layout="phone"] .graph-read .rd-w { display: none; }
+.stage[data-layout="phone"] .result { left: 8px; top: 8px; right: 8px; max-width: none; padding: 7px 10px 8px 12px; }
+.stage[data-layout="phone"] .result-title { white-space: normal; }
+.stage[data-layout="phone"] .presets { width: 100%; height: 54px; margin-top: var(--gap); padding: 0 4px; }
+.stage[data-layout="phone"] .presets-thumb { top: 4px; bottom: 4px; }
+.stage[data-layout="phone"] .pull { width: 100%; height: 64px; margin-top: auto; border-radius: 18px; }
+.stage[data-layout="phone"] .pull-a { border-radius: 14px 0 0 14px; }
+.stage[data-layout="phone"] .pull-b { border-radius: 0 14px 14px 0; }
+
+/* the phone's temperature dial is dark glass (the concept's phone), not spun chrome */
+.stage[data-layout="phone"] .dial--temp .bezel {
+  background: radial-gradient(circle, #1D2026 60%, #121418 72%, #1A1C21 100%);
+  box-shadow: 0 0 0 3px #8E8E8E, 0 0 0 5px #EFEFEF, 0 0 0 7px #9A9A9A, 0 0 0 8.5px #4C4C4C, 0 16px 28px -8px rgb(40 25 10 / .55), inset 0 4px 12px rgb(0 0 0 / .85);
+}
+.stage[data-layout="phone"] .dial--temp .knurl { box-shadow: 0 0 0 1px rgb(0 0 0 / .6), 0 4px 10px rgb(0 0 0 / .5); }
+.stage[data-layout="phone"] .dial--temp .knurl-spin { background: conic-gradient(from 0deg, #5A3A26, #C98457, #F2C29C, #A9643A, #5A3A26, #C98457, #F0BE96, #A9643A, #5A3A26); }
+.stage[data-layout="phone"] .dial--temp .knurl-light { background: linear-gradient(155deg, rgb(255 255 255 / .3), transparent 50%, rgb(0 0 0 / .35)); }
+.stage[data-layout="phone"] .dial--temp .face {
+  background: radial-gradient(90% 70% at 50% 18%, rgb(255 255 255 / .1), transparent 60%), radial-gradient(circle at 50% 60%, #22252B, #0F1013 75%);
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / .06), inset 0 6px 16px rgb(0 0 0 / .7);
+}
+.stage[data-layout="phone"] .dial--temp .face::before { display: none; }
+.stage[data-layout="phone"] .dial--temp .face::after { content: ''; position: absolute; inset: 0; border-radius: 50%;
+  background: linear-gradient(160deg, rgb(255 255 255 / .1), transparent 38%); pointer-events: none; }
+.stage[data-layout="phone"] .dial--temp .face-label { color: rgb(233 228 220 / .75); text-shadow: none; font-weight: 500; font-size: calc(var(--d) * .058 * 1px); }
+.stage[data-layout="phone"] .dial--temp .num { font-size: calc(var(--d) * .25 * 1px); }
+.stage[data-layout="phone"] .dial--temp .face-value { text-shadow: 0 0 18px rgb(255 255 255 / .18); }
+
+/* ---- 11. REDUCED MOTION ---- */
+@media (prefers-reduced-motion: reduce) {
+  .steam i { animation: none; opacity: .35; transform: translateY(-30%); }
+  .brewl[data-temp-state="hot"] .dial--temp .halo { animation: none; opacity: .9; }
+  .presets-thumb, .result, .playhead, .marker.ghost { transition: none; }
+}

@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#F1E8D8">
+  <title>BREWL — Espresso control</title>
+  <meta name="description" content="Dial in your shot: temperature, pressure and grind on real rotary dials, three recipes, and a live extraction graph as the cup fills.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Anton&family=Inter:wght@400..800&family=Oswald:wght@500..700&display=swap">
+  <link rel="stylesheet" href="style.css">
+  <script type="module" src="app.js"></script>
+</head>
+<body>
+  <!-- the stage holds one panel and scales it to the screen (app.js → fit()): the desk panel, a wide panel for phones
+       on their side, or the phone layout. Every size inside is in the design's own pixels. -->
+  <main class="stage" data-layout="desk">
+    <div class="frame">
+
+      <!-- ============================== THE COMPONENT ==============================
+           BREWL espresso control. Three rotary dials (temperature, pressure, grind) are real sliders: turn them by
+           dragging round, tap the scale to jump, use the wheel or the arrow keys. Three recipes set all three at once.
+           PULL SHOT runs the extraction those dials make: the graph draws pressure and flow live, the cup fills, the
+           timer counts, and the shot stops at the recipe's weight with a verdict. -->
+      <section class="brewl" aria-labelledby="brewl-name" data-temp-state="ready">
+
+        <header class="plate">
+          <svg class="plate-shape" aria-hidden="true" preserveAspectRatio="none">
+            <defs>
+              <linearGradient id="plate-fill" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0" stop-color="#2E323A"/><stop offset=".55" stop-color="#1C1F25"/><stop offset="1" stop-color="#15171B"/>
+              </linearGradient>
+              <linearGradient id="plate-edge" x1="0" y1="0" x2="1" y2="0">
+                <stop offset="0" stop-color="#7A3B1D"/><stop offset=".3" stop-color="#E9A57A"/><stop offset=".5" stop-color="#C46A35"/>
+                <stop offset=".7" stop-color="#E9A57A"/><stop offset="1" stop-color="#7A3B1D"/>
+              </linearGradient>
+            </defs>
+            <path class="plate-body" fill="url(#plate-fill)"/>
+            <path class="plate-lip" fill="none" stroke="url(#plate-edge)" stroke-width="2.5"/>
+          </svg>
+          <div class="badge"><h1 id="brewl-name" class="badge-word">BREWL</h1></div>
+          <p class="plate-sub">Espresso control</p>
+        </header>
+
+        <!-- temperature: the big dial. The arc is drawn on a canvas; the knurled ring and the marker turn with the value -->
+        <div class="dial dial--temp" role="slider" tabindex="0" aria-label="Brew temperature" data-dial="temp">
+          <svg class="ticks" aria-hidden="true"></svg>
+          <div class="halo" aria-hidden="true"></div>
+          <div class="bezel" aria-hidden="true">
+            <canvas class="arc"></canvas>
+            <i class="marker ghost g2"></i><i class="marker ghost g1"></i><i class="marker"></i>
+          </div>
+          <div class="knurl" aria-hidden="true"><i class="knurl-spin"></i><i class="knurl-light"></i></div>
+          <div class="face" aria-hidden="true">
+            <span class="face-label">Temperature</span>
+            <span class="face-value"><b class="num">93</b><sup>°C</sup></span>
+            <span class="face-chip">9 bar · 28 s</span>
+          </div>
+          <div class="steam" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
+        </div>
+
+        <div class="knobs">
+          <div class="knob-wrap knob-wrap--pressure">
+            <span class="knob-label" id="lbl-pressure">Pressure</span>
+            <div class="dial dial--knob" role="slider" tabindex="0" aria-labelledby="lbl-pressure" data-dial="pressure">
+              <svg class="ticks" aria-hidden="true"></svg>
+              <div class="knurl" aria-hidden="true"><i class="knurl-spin"></i><i class="knurl-light"></i></div>
+              <div class="face" aria-hidden="true"><i class="notch"></i><span class="face-value"><b class="num">9</b></span></div>
+            </div>
+            <span class="knob-unit" aria-hidden="true">bar</span>
+            <span class="knob-end lo" aria-hidden="true">6</span><span class="knob-end hi" aria-hidden="true">12</span>
+          </div>
+          <div class="knob-wrap knob-wrap--grind">
+            <span class="knob-label" id="lbl-grind">Grind</span>
+            <div class="dial dial--knob" role="slider" tabindex="0" aria-labelledby="lbl-grind" data-dial="grind">
+              <svg class="ticks" aria-hidden="true"></svg>
+              <div class="knurl" aria-hidden="true"><i class="knurl-spin"></i><i class="knurl-light"></i></div>
+              <div class="face" aria-hidden="true"><i class="notch"></i><span class="face-value"><b class="num">14</b></span></div>
+            </div>
+            <span class="knob-unit" aria-hidden="true">step</span>
+            <span class="knob-end lo" aria-hidden="true">fine</span><span class="knob-end hi" aria-hidden="true">coarse</span>
+          </div>
+        </div>
+
+        <!-- the recipes: a radio group; the copper thumb slides to the chosen one -->
+        <div class="presets" role="radiogroup" aria-label="Recipe">
+          <i class="presets-thumb" aria-hidden="true"></i>
+          <button type="button" role="radio" class="preset" data-recipe="ristretto" aria-checked="false">Ristretto</button>
+          <i class="presets-dot" aria-hidden="true"></i>
+          <button type="button" role="radio" class="preset" data-recipe="espresso" aria-checked="true">Espresso</button>
+          <i class="presets-dot" aria-hidden="true"></i>
+          <button type="button" role="radio" class="preset" data-recipe="lungo" aria-checked="false">Lungo</button>
+        </div>
+
+        <div class="readout">
+        <!-- the extraction graph: dark glass, the curves on a canvas, the axis words and the playhead in HTML -->
+        <figure class="graph" aria-describedby="graph-desc">
+          <canvas class="graph-canvas" aria-hidden="true"></canvas>
+          <div class="graph-legend" aria-hidden="true"><span class="lg lg-p">Pressure</span><span class="lg lg-f">Flow</span></div>
+          <div class="graph-read" aria-hidden="true"><span class="rd rd-p">0.0 bar</span><span class="rd rd-f">0.0 g/s</span><span class="rd rd-w">0.0 g</span></div>
+          <div class="graph-axis" aria-hidden="true"></div>
+          <div class="playhead" aria-hidden="true"><i class="ph-line"></i><i class="ph-dot ph-p"></i><i class="ph-dot ph-f"></i><span class="ph-time">0s</span></div>
+          <div class="result" role="status" aria-live="polite">
+            <p class="result-title"></p>
+            <p class="result-advice"></p>
+          </div>
+          <figcaption id="graph-desc" class="sr-only">Extraction graph</figcaption>
+        </figure>
+
+        <!-- the cup under the spout, and the shot timer -->
+        <div class="cup" aria-hidden="true">
+          <svg class="cup-svg" viewBox="0 0 320 204" preserveAspectRatio="xMidYMid meet"></svg>
+          <span class="timer">00:00</span>
+        </div>
+        </div>
+
+        <button type="button" class="pull" aria-describedby="pull-hint">
+          <span class="pull-a">Pull</span><span class="pull-b">Shot</span>
+          <i class="pull-progress" aria-hidden="true"></i>
+        </button>
+        <p id="pull-hint" class="sr-only">Runs the shot with the current dials. Press again to stop.</p>
+        <p class="sr-only" aria-live="polite" id="announce"></p>
+      </section>
+    </div>
+  </main>
+</body>
+</html>
